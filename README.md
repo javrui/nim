@@ -2,33 +2,49 @@
 
 # 2025 Q-Learning-based Python script for training and playing the Nim game
 
-## What is this project about?
 
-I found Q-learning fascinating. Using a simple (Bellman) equation, an agent learns optimal actions in an unknown environment through rewards and punishments in an iterative process. Much like how we learn in life, don't you think? (In real life, the reward we choose to guide our actions, makes the difference)
+## Project Overview
 
-Completing a Nim game implementation in Python was one of the projects in the course [(HarvardX): "CS50's Introduction to Artificial Intelligence with Python (2024)](formacion_CS50AI.md). I decided to experiment further by redesigning and extending the code to visualize the learning process.
+This project is:
 
-## Nim game description
+- A Python script implementing the Q-learning algorithm for reinforcement learning.
+- Designed to both train an AI and let you play against it in the Nim game.
+- Inspired by a project from my 2024 training course (HarvardX)["CS50's Introduction to Artificial Intelligence with Python (2024)](formacion_CS50AI.md), but fully object-oriented and documented using Google-style docstrings.
+- Developed using AI assistants—ChatGPT o3-mini-high, ChatGPT 4o, and DeepSeek—to generate and compare code.
+- Includes a visual analysis of the Q-table to explore how the AI "thinks."
+
+## Why this project?
+
+Q-learning is fascinating—it allows an agent to learn optimal actions in an unknown environment using rewards and penalties, all based on a simple Bellman equation. It mirrors how we learn in real life, doesn’t it? (Though in life, the rewards we choose to follow make all the difference.)
+
+I also wanted to evaluate AI-generated code, comparing different models and testing their reliability in implementing my design.
+
+
+## Nim game overview
 
 Nim is a strategy game where two players take turns removing tokens from heaps on the game board. Each turn, a player removes any number of tokens from a single heap. The player who clears the board with their move wins.
 
-## Foundations of design
 
-Create a Simple Q-Learning library suitable for different problems solving (Nim, path finding, ..)
-Q-Learning library should consider training and agent acting in problem solving.
-Use library to code a Nim game trainer and player.
+## Design foundations
 
-Derivate classes with names that reflect the specific concepts and terminology of the game:
+Key classes and their relation to reinforcement learning concepts:
 
-- Action → Move
-- State → BoardState
-- QLearningAgent → NimPlayer
-- Environment → NimGame
+- Move → Represents an RL action.
+- Board → Represents an RL state.
+- Learner → The Q-learning agent.
+- NimGame → The RL environment.
+- NimTrainerPlayer → Manages training and human vs. AI gameplay.
+
+## UML Class Diagram
+
+    (To be added)
+
 
 ## Design challenges
 
-In Q-learning, the reward is immediate. But in Nim game, the reward (game won or lost) comes after opponent move, not own move.
-Q-learning is designed for single-agent environments. So in a two-player game, the agent's actions and the opponent's actions are both part of the environment
+In Q-learning, the reward is immediate. But in Nim game, the reward (win/loss) comes after the opponent’s move, not the agent's move.
+Q-learning is typically used for single-agent environments. In a two-player game like Nim, both the agent’s and the opponent’s actions influence the environment.
+
+This creates unique challenges when designing the learning process.
 
 
-![Under Construction](images/under_construction.jpg)
