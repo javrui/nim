@@ -1,6 +1,6 @@
 <link rel="stylesheet" href="css/styles.css">
 
-# 2024 Python q-Learning Nim player
+# 2025 Q-Learning-based Python script for training and playing the Nim game
 
 ## What is this project about?
 
