@@ -2,6 +2,7 @@
 
 # 2025 Q-Learning-based Python script for training and playing the Nim game
 
+![Banner](images/imagen_4_1920x150.jpg)
 
 ## Project Overview
 

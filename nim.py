@@ -41,8 +41,8 @@ class Move:
             str: A string in the format "Move(heap_index=X, stones=Y)"
                  heap_index starts by 1, for human readability.
         """
-
-        return f"From heap {self.heap_index+1}, remove {self.stones} stones."
+        return f"[{self.heap_index+1}]->{self.stones}"
+        #return f"From heap {self.heap_index+1}, remove {self.stones} stones."
 
 class Board:
     """
@@ -137,14 +137,14 @@ class Board:
                 moved stones are represented by '·'
                 remaining stones are represented by '*'
         """
-        _str = "Board (* = stones; · = removed stone)\n"
+        _str = "Board (* = stones; · = just removed stone)\n"
         for index, heap in enumerate(self.heaps):
             if index == chosen_move.heap_index:
                 _str += f"{index+1}: {'*'*(heap-chosen_move.stones)}{'·'*chosen_move.stones}\n"
             else:
                 _str += f"{index+1}: {'*'*heap}\n"
-        print(_str)
-        return _str
+        print(_str[:-1])
+        return _str[:-1]
 
 class Learner:
     """
@@ -447,9 +447,11 @@ class NimTrainerPlayer:
             Move: The selected move.
         """
         valid_moves: List[Move] = self.game.get_valid_moves()
-        print("Valid moves:")
+        print(50*'-')
+        print("Your valid moves: ([heap]->stones : move nr.)")
         for idx, move in enumerate(valid_moves):
-            print(f"  {idx}: {move}")
+            #print(f"  {idx}: {move}")
+            print(f"  {move} : {idx}")
 
         choice = None
         while (choice is None):
@@ -563,19 +565,19 @@ class NimTrainerPlayer:
                 chosen_move = self.get_human_move()
                 self.game.board.show_stones_move(chosen_move)
                 self.game.apply_move(chosen_move)
-                print(f"\nBoard after your move:\n{self.game.board}")
+                # print(f"\nBoard after your move:\n{self.game.board}")
                 if self.game.is_game_over():
                     print("Congratulations! You win!")
                     return
             else:
                 # Nim IA turn
                 chosen_move = self.learner.choose_move(self.game.board, train_mode=False)
-                print(f"\nNim AI moves: {chosen_move}\n")
+                print(50*'-')
+                print(f"Nim AI moves: {chosen_move}\n")
                 self.game.board.show_stones_move(chosen_move)
                 self.game.apply_move(chosen_move)
-                print(f"\nBoard after NIm AI move:\n{self.game.board}")
+                #print(f"\nBoard after Nim AI move:\n{self.game.board}")
                 if self.game.is_game_over():
-                    print(f"\nBoard after move:\n{self.game.board}")
                     print("Agent wins!")
                     return
             human_turn = not human_turn
