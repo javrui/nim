@@ -49,3 +49,15 @@ Q-learning is typically used for single-agent environments. In a two-player game
 This creates unique challenges when designing the learning process.
 
 
+## DeepSeek vs ChatGPT o3-mini-high
+DeepSeek no considera reward -1 si el oponente gana
+
+
+## Q-table
+I wanted to see how q-table works, and how it reflects q-learning
+
+given heaps: n1, n2, n3, ..
+possible states = (n1+1)x(n2+1)x(n3+1)x...
+possible moves = n1 x n2 x n3
+
+Board [1, 3, 5] gives an affordable nr of states and moves: 48 states and 9 moves.
