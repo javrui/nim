@@ -155,8 +155,6 @@ class Board:
         """
         return Board(self.heaps.copy())
 
-
-
 class Learner:
     """
     Represents a Q-learning based learner for the Nim game.
@@ -343,6 +341,9 @@ class Learner:
         Rows: Board heaps (ordered as specified)
         Columns: Movements (ordered as specified)
         """
+
+        print(f"Values in q-Table: {len(self.q_table)}\n")
+
         # Extract all unique board states and moves
 
         # Sort by sum and inverse natural order
@@ -352,18 +353,31 @@ class Learner:
         # Sort by stones first, then natural order
         moves = sorted(set((heap_index, stones) for _, heap_index, stones in self.q_table.keys()),
                     key=lambda m: (m[1], m))
-        # Print header
-        move_headers = [f"({h+1}, {s})" for h, s in moves]  # 1-based index for heaps for human readability
+        # Print header, 1-based index for heaps for human readability
+        move_headers = [f"({h+1}, {s})" for h, s in moves]
         print(f"{'Board':<15} " + " ".join(f"{m:>8}" for m in move_headers))
         print("-" * (15 + 10 * len(move_headers)))
 
         # Print rows
         for board in board_states:
             board_str = str(list(board))
-            row_values = [f"{float(self.q_table.get((board, h, s), 0) * 100):>8.2f}" if self.q_table.get((board, h, s), 0) != 0 else " " * 8 for h, s in moves]
+
+            if sum(1 for x in board if x > 0) == 1:
+                board_mark = "*"
+            elif sum(1 for x in board if x > 0) == 2:
+                board_mark = "-"
+            else:
+                board_mark = " "
+            board_str += board_mark
+            #board_str = str(list(board)) + " *" if sum(1 for x in board if x > 0) == 1 else str(list(board)) + "  "
+            row_values = [
+                #f"{float(self.q_table.get((board, h, s), 0) * 100):>8.2f}"
+                f"{float(self.q_table.get((board, h, s), 0) * 100):>8.0f}"
+                if self.q_table.get((board, h, s), 0) != 0
+                else " " * 8 for h, s in moves]
 
             #row_values = [f"{int(self.q_table.get((board, h, s), 0) * 100):>8d}" if self.q_table.get((board, h, s), 0) != 0 else " " * 8 for h, s in moves]
-            print(f"{board_str:<15} " + " ".join(row_values))
+            print(f"{board_str:<13} " + " ".join(row_values))
 
 class NimGame:
     """
@@ -476,6 +490,148 @@ class NimTrainerPlayer:
         self.learner: Learner = learner
         self.q_table_filename: str = q_table_filename
 
+    def load_q_table(self) -> bool:
+        """
+        Load the Q-table from the file specified by q_table_filename if it exists.
+        if self.q_table_filename is "", the function returns without doing anything, no q table is assumed to exist
+
+        Returns:
+            bool: True if the Q-table was loaded successfully, False otherwise.
+        """
+        if self.q_table_filename == "" or not os.path.exists(self.q_table_filename):
+            return False
+        try:
+            self.learner.load_q_table(self.q_table_filename)
+            print(f"Loaded Q-table from '{self.q_table_filename}'. Skipping training.")
+            return True
+        except IOError as e:
+            print(f"Could not load Q-table from '{self.q_table_filename}': {e}. Proceeding with training.")
+            return False
+
+    def save_q_table(self) -> None:
+        """ Save the Q-table to the file specified by q_table_filename.
+        """
+        if self.q_table_filename == "":
+            return
+
+        self.learner.save_q_table(self.q_table_filename)
+        print(f"Q-table saved to '{self.q_table_filename}'.")
+
+    def train(self, episodes: int = 10000) -> None:
+        """
+        Train the Q-learning agent over a number of episodes. If a saved Q-table is found in the file
+        specified by q_table_filename, it is loaded and training is skipped; otherwise, training is performed
+        and the resulting Q-table is saved to that file.
+
+        Two agents play against each other, the agent and a random opponent (opponent that chooses random moves). The Q-value updates with both agents' moves.
+
+        Args:
+            episodes (int): The number of training episodes.
+        """
+        # If a saved Q-table exists, load it and skip training.
+        if self.load_q_table():
+            return
+
+        # Proceed with training if no valid Q-table was loaded.
+        for episode in range(episodes):
+            self.game.reset()
+            previous_agent_board = None # Board state before the agent's move
+            previous_agent_move = None # move chosen by previous agent
+            learning_agent_turn = True # Learning agent is playing (not random opponent)
+
+            # Training loop:
+            while True:
+                board = self.game.board.copy()
+                if learning_agent_turn:
+                    move = self.learner.choose_move(board, train_mode=True)
+                else:
+                    # Opponent agent does not use q-table, but random moves
+                    move = random.choice(self.game.get_valid_moves())
+
+                next_board, reward, game_over = self.game.step(move)
+
+                if game_over:
+                    # Update the Q-value for the agent's move using the final board state and reward.
+                    self.learner.update_Q_value(board, move, reward, next_board)
+
+                    # Update the Q-value for the previous agent's move that lead to loose (if available)
+                    if previous_agent_board:
+                        self.learner.update_Q_value(previous_agent_board, previous_agent_move, -1, board)
+
+                    break
+
+                # If game continues, set previous_agent_board for next loop iteration
+                previous_agent_board = next_board
+                previous_agent_move = move
+
+                learning_agent_turn = not learning_agent_turn
+
+            # Decay epsilon after each episode.
+            self.learner.decay_epsilon()
+
+        self.save_q_table()
+
+    def OLD_train(self, episodes: int = 10000) -> None:
+        """
+        Train the Q-learning agent over a number of episodes. If a saved Q-table is found in the file
+        specified by q_table_filename, it is loaded and training is skipped; otherwise, training is performed
+        and the resulting Q-table is saved to that file.
+
+        Modified to simulate an opponent move after the agent's move. The Q-value update now uses the board
+        state resulting from the opponent's move (if the game was not already over) and adjusts the reward accordingly.
+
+        Args:
+            episodes (int): The number of training episodes.
+        """
+        # Check if a saved Q-table exists. If so, load it and skip training.
+        if os.path.exists(self.q_table_filename):
+            self.load_q_table()
+            return
+
+        # Proceed with training if no valid Q-table was loaded.
+        for episode in range(episodes):
+            self.game.reset()
+            current_board = self.game.board.copy()
+            while not self.game.is_game_over():
+                # -Agent's Move
+                agent_move = self.learner.choose_move(current_board, train_mode=True)
+                next_board, reward, game_over = self.game.step(agent_move)
+
+                if not game_over:
+                    # Simulates random opponent's valid move
+                    opponent_valid_moves = self.game.get_valid_moves()
+                    opponent_move = random.choice(opponent_valid_moves)
+                    next_board_after_opponent, opponent_reward, game_over = self.game.step(opponent_move)
+
+                    if game_over:
+                        # If the opponent's move ends the game, it means the opponent wins
+                        reward = -1.0
+                    else:
+                        # If the game still continues, penalize the agent slightly.
+                        reward = -self.game.step_penalty
+                #else:
+                    # If the opponent's move ends the game, it means the agent loses.
+                    #reward = -1.0
+                    #else:
+                        # If the game still continues, penalize the agent slightly.
+                        #reward = -self.game.step_penalty
+                    # Use the board state after the opponent's move for the Q-value update.
+                    # next_board = next_board_after_opponent
+                # --------------------------------------------------------
+
+                # Update the Q-value for the agent's move using the (possibly updated) next_board and reward.
+                self.learner.update_Q_value(current_board, agent_move, reward, next_board)
+                if not game_over:
+                    # Move to the next state after opponent's move
+                    current_board = next_board_after_opponent
+                else:
+                    break
+
+            self.learner.decay_epsilon()
+
+        self.save_q_table()
+
+
     def get_human_move(self)-> Move:
         """
         The human is prompted to select a move from a list of valid moves.
@@ -506,84 +662,6 @@ class NimTrainerPlayer:
         print()
         return chosen_move
 
-    def load_q_table_if_present(self) -> None:
-        """
-        Load the Q-table from the file specified by q_table_filename if it exists.
-        if self.q_table_filename is "", the function returns without doing anything, no q table is assumed to exist
-        """
-        if self.q_table_filename == "":
-            return
-        try:
-            self.learner.load_q_table(self.q_table_filename)
-            print(f"Loaded Q-table from '{self.q_table_filename}'. Skipping training.")
-        except IOError as e:
-            print(f"Could not load Q-table from '{self.q_table_filename}': {e}. Proceeding with training.")
-
-    def save_q_table(self) -> None:
-        """ Save the Q-table to the file specified by q_table_filename.
-        """
-        if self.q_table_filename == "":
-            return
-
-        self.learner.save_q_table(self.q_table_filename)
-        print(f"Q-table saved to '{self.q_table_filename}'.")
-
-    def train(self, episodes: int = 10000) -> None:
-        """
-        Train the Q-learning agent over a number of episodes. If a saved Q-table is found in the file
-        specified by q_table_filename, it is loaded and training is skipped; otherwise, training is performed
-        and the resulting Q-table is saved to that file.
-
-        Modified to simulate an opponent move after the agent's move. The Q-value update now uses the board
-        state resulting from the opponent's move (if the game was not already over) and adjusts the reward accordingly.
-
-        Args:
-            episodes (int): The number of training episodes.
-        """
-        # Check if a saved Q-table exists. If so, load it and skip training.
-        if os.path.exists(self.q_table_filename):
-            self.load_q_table_if_present()
-            return
-
-        # Proceed with training if no valid Q-table was loaded.
-        for episode in range(episodes):
-            self.game.reset()
-            current_board = self.game.board.copy()
-            while not self.game.is_game_over():
-                # -Agent's Move
-                agent_move = self.learner.choose_move(current_board, train_mode=True)
-                next_board, reward, game_over = self.game.step(agent_move)
-
-                # Simulates random opponent's move if game is not over
-                if not game_over:
-                    # For the opponent, select a random valid move.
-                    opponent_valid_moves = self.game.get_valid_moves()
-                    opponent_move = random.choice(opponent_valid_moves)
-
-                    next_board_after_opponent, opponent_reward, game_over = self.game.step(opponent_move)
-                    # If the opponent's move ends the game, it means the agent loses.
-                else:
-                    # Reward for winning
-                    reward = +1.0
-                    #else:
-                        # If the game still continues, penalize the agent slightly.
-                        #reward = -self.game.step_penalty
-                    # Use the board state after the opponent's move for the Q-value update.
-                    # next_board = next_board_after_opponent
-                # --------------------------------------------------------
-
-                # Update the Q-value for the agent's move using the (possibly updated) next_board and reward.
-                self.learner.update_Q_value(current_board, agent_move, reward, next_board)
-                if not game_over:
-                    # Move to the next state after opponent's move
-                    current_board = next_board_after_opponent
-                else:
-                    break
-
-            self.learner.decay_epsilon()
-
-        self.save_q_table()
-
     def play_against_human(self) -> None:
         """
         Play a game of Nim against a human player.
@@ -595,7 +673,7 @@ class NimTrainerPlayer:
         """
         # If no Q-table is loaded in the learner and a saved Q-table exists, load it.
         if not self.learner.q_table and os.path.exists(self.q_table_filename):
-            self.load_q_table_if_present()
+            self.load_q_table()
 
         first: str = input("Do you want to go first? (y/n): ").strip().lower()
         human_turn: bool = (first == 'y')
@@ -639,7 +717,7 @@ def main() -> None:
     initial_heaps: List[int] = [1, 3, 5]
 
     # Initialize the game environment with a configurable step penalty.
-    game: NimGame = NimGame(initial_heaps, step_penalty=0.00)
+    game: NimGame = NimGame(initial_heaps, step_penalty=0.01)
 
     # Initialize the Q-learning agent with default hyperparameters.
     learner: Learner = Learner()
@@ -648,8 +726,9 @@ def main() -> None:
     trainer_player: NimTrainerPlayer = NimTrainerPlayer(game, learner, q_table_filename="")
 
     # Train the agent. If a saved Q-table exists, it will be loaded and training will be skipped.
-    print("Training the agent...")
-    trainer_player.train(episodes=100000)
+    training_episodes = 100000
+    print(f"Training the agent with {training_episodes} episodes.")
+    trainer_player.train(training_episodes)
 
     # Show Q-Table:
     learner.show_q_table()
