@@ -155,6 +155,34 @@ class Board:
         """
         return Board(self.heaps.copy())
 
+    def generate_all_board_states(self):
+        """
+        Generates all possible board states from board configuration.
+
+        Args:
+            initial_board (list): The initial configuration of the board (e.g., [1, 3, 5]).
+
+        Returns:
+            set: A set of all possible board states, represented as tuples.
+        """
+        def _generate_states(board):
+            states = set()
+            states.add(tuple(board))  # Add the current state
+            for i, heap in enumerate(board):  # Iterate over each pile with index and value
+                for stones in range(1, heap + 1):  # Remove 1 to all stones from the pile
+                    new_board = list(board)  # Create a copy of the board
+                    new_board[i] -= stones  # Remove stones from the pile
+                    if new_board[i] < 0:  # Skip invalid states
+                        continue
+                    new_board_tuple = tuple(new_board)  # Convert to tuple (hashable for set)
+                    if new_board_tuple not in states:  # Avoid duplicates
+                        states.update(_generate_states(new_board))  # Recursively generate states
+            return states
+
+        return _generate_states(self.heaps)
+
+
+
 class Learner:
     """
     Represents a Q-learning based learner for the Nim game.
@@ -277,12 +305,17 @@ class Learner:
         The Q-learning update rule is defined as:
             Q(board, move) ← Q(board, move) + alpha * (reward + gamma * max_{move'} Q(next_board, move') - Q(board, move))
 
+        Admits board as None, just returning.
+
         Args:
             board (Board): The board (state) before taking the move.
             move (Move): The move (action) taken.
             reward (float): The reward received after taking the move.
             next_board (Board): The board (state) after taking the move.
         """
+        if board is None:
+            return
+
         current_q: float = self.get_Q_value(board, move)
         if next_board.is_game_over():
             max_future_q: float = 0.0
@@ -335,20 +368,24 @@ class Learner:
         except OSError as e:
             raise IOError(f"Failed to load Q-table from {filename}: {e}") from e
 
-    def show_q_table(self) -> None:
+    def show_q_table(self, initial_board: Board) -> None:
         """
         Print the Q-table as a formatted table.
         Rows: Board heaps (ordered as specified)
         Columns: Movements (ordered as specified)
         """
-
-        print(f"Values in q-Table: {len(self.q_table)}\n")
+        # q_table complete possible states
+        all_board_states = Board(initial_board).generate_all_board_states()
 
         # Extract all unique board states and moves
-
         # Sort by sum and inverse natural order
         board_states = sorted(set(state for state, _, _ in self.q_table.keys()),
                             key=lambda b: (sum(b), tuple(-x for x in b)))
+
+        print(f"\nNo. of Values in q-Table: {len(self.q_table)}")
+        print(f"No. present rows in q-Table:  {len(board_states)}")
+        print(f"No. possible rows in q-table: {len(all_board_states)}\n")
+
 
         # Sort by stones first, then natural order
         moves = sorted(set((heap_index, stones) for _, heap_index, stones in self.q_table.keys()),
@@ -523,7 +560,7 @@ class NimTrainerPlayer:
         specified by q_table_filename, it is loaded and training is skipped; otherwise, training is performed
         and the resulting Q-table is saved to that file.
 
-        Two agents play against each other, the agent and a random opponent (opponent that chooses random moves). The Q-value updates with both agents' moves.
+        Two agents play against each other, the agent and a random opponent (opponent that chooses random moves).
 
         Args:
             episodes (int): The number of training episodes.
@@ -535,8 +572,8 @@ class NimTrainerPlayer:
         # Proceed with training if no valid Q-table was loaded.
         for episode in range(episodes):
             self.game.reset()
-            previous_agent_board = None # Board state before the agent's move
-            previous_agent_move = None # move chosen by previous agent
+            #previous_agent_board = None # Board state before the agent's move
+            #previous_agent_move = None # move chosen by previous agent
             learning_agent_turn = True # Learning agent is playing (not random opponent)
 
             # Training loop:
@@ -549,20 +586,19 @@ class NimTrainerPlayer:
                     move = random.choice(self.game.get_valid_moves())
 
                 next_board, reward, game_over = self.game.step(move)
+                #if not learning_agent_turn and reward == 1:
+                    # If the opponent wins, the agent loses.
+                    #self.learner.update_Q_value(previous_agent_board, move, -1, board)
+
+                # Update the Q-value for the agent's move
+                if learning_agent_turn:
+                    self.learner.update_Q_value(board, move, reward, next_board)
+                    # to be used in case next (opponent) move wins game
+                    #previous_agent_board = board.copy()
+                    #previous_agent_move = move
 
                 if game_over:
-                    # Update the Q-value for the agent's move using the final board state and reward.
-                    self.learner.update_Q_value(board, move, reward, next_board)
-
-                    # Update the Q-value for the previous agent's move that lead to loose (if available)
-                    if previous_agent_board:
-                        self.learner.update_Q_value(previous_agent_board, previous_agent_move, -1, board)
-
                     break
-
-                # If game continues, set previous_agent_board for next loop iteration
-                previous_agent_board = next_board
-                previous_agent_move = move
 
                 learning_agent_turn = not learning_agent_turn
 
@@ -715,6 +751,8 @@ def main() -> None:
     """
     # Define the initial heaps configuration (e.g., heaps with 1, 3, and 5 stones).
     initial_heaps: List[int] = [1, 3, 5]
+    #initial_heaps: List[int] = [2, 0, 0]
+
 
     # Initialize the game environment with a configurable step penalty.
     game: NimGame = NimGame(initial_heaps, step_penalty=0.01)
@@ -726,12 +764,12 @@ def main() -> None:
     trainer_player: NimTrainerPlayer = NimTrainerPlayer(game, learner, q_table_filename="")
 
     # Train the agent. If a saved Q-table exists, it will be loaded and training will be skipped.
-    training_episodes = 100000
+    training_episodes = 10000
     print(f"Training the agent with {training_episodes} episodes.")
     trainer_player.train(training_episodes)
 
     # Show Q-Table:
-    learner.show_q_table()
+    learner.show_q_table(initial_heaps)
     exit()
 
     # Let the human play against the trained agent.
