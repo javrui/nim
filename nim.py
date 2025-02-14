@@ -1,8 +1,7 @@
 """
-This module implements a Nim game with Q-Learning reinforcement learning. The version of Nim considered is: the player who removes the last stones wins.
+This module implements a Nim game trainer and player with Q-Learning
+reinforcement learning. Game winner: the player who removes the last stone(s).
 
-Running as a script:
-    ...
 Author:
     JRM 2025.01
 License:
@@ -434,15 +433,15 @@ class Learner:
                   decimal portion (i.e. int(q_value * 100)).
           - If no Q-value is present (key not in q_table) and the move is possible, the cell is left blank.
         """
-        IMPOSSIBLE_CELL = '░'
+
+        # Character for non possible board-move combinations and table borders.
+        brick = '░'
+        q_value_count = 0
+        missing_q_values_count = 0
+
         # Generate all possible board states from the initial configuration.
         board_obj = Board(initial_board)
         all_board_states = board_obj.get_all_possible_states()[1:]
-
-        # Print some statistics about the Q-table.
-        print(f"\nNo. of Q-values in q-Table: {len(self.q_table)}")
-        print(f"No. of present board states in q-Table: {len({state for state, _, _ in self.q_table.keys()})}")
-        print(f"No. of possible board states: {len(all_board_states)}\n")
 
         # Determine all possible moves from the initial configuration.
         num_heaps = len(initial_board)
@@ -455,7 +454,7 @@ class Learner:
         moves = sorted(moves_set, key=lambda m: (m[1], m[0]))
 
         # Build and print the header row.
-        header = f"{'Board':<11}" + " ".join(f"{f'({m[0]+1},{m[1]})':>8}" for m in moves)
+        header = f"{'Board/moves':<11}" + " ".join(f"{f'({m[0]+1},{m[1]})':>8}" for m in moves)
 
         print(header)
         print("-" * len(header))
@@ -469,21 +468,23 @@ class Learner:
             for heap_idx, stones in moves:
                 # If the board's available stones in the given heap are less than required, mark as impossible.
                 if board[heap_idx] < stones:
-                    cell = IMPOSSIBLE_CELL
+                    cell = brick
                 else:
                     key = (board, heap_idx, stones)
                     if key in self.q_table:
                         q_val = self.q_table[key]
+                        q_value_count += 1
                         # If Q-value is exactly 0, display "0".
                         if q_val == 0:
-                            cell = "0"
+                            cell = "0" # clearer than 0.0
                         else:
                             cell = f"{int(q_val * 100)}"
                     else:
                         cell = "___"
-                #row += f"{cell:>9}"
-                row += f"{cell:>9}".replace(' ', IMPOSSIBLE_CELL)
-            print(row + IMPOSSIBLE_CELL)
+                        missing_q_values_count += 1
+                row += f"{cell:>9}".replace(' ', brick)
+            print(row + brick)
+        print(f"\nq_values count/max possible q_values: {q_value_count}/{q_value_count+missing_q_values_count} ({100*q_value_count/(q_value_count+missing_q_values_count):.0f}%)\n")
 
 class NimGame:
     """
@@ -640,39 +641,50 @@ class NimTrainerPlayer:
 
         for episode in range(episodes):
             self.game.reset()
-            # Randomly decide which player goes first in this episode.
-            learning_agent_turn = random.choice([True, False])
+            # Randomly decide whether the agent goes first in this episode (affects full round ordering).
+            agent_goes_first = random.choice([True, False])
 
-            # Initialize variables to store the learner’s last board and move.
-            previous_agent_board = None
-            previous_agent_move = None
+            # Run full rounds until the game is over.
+            while not self.game.is_game_over():
+                if agent_goes_first:
+                    # Agent makes a move.
+                    board_state = self.game.board.copy()
+                    agent_move = self.learner.choose_move(board_state, train_mode=True)
+                    next_board, reward, game_over = self.game.step(agent_move)
+                    if game_over:
+                        #If the agent wins on its move, update and break.
+                        self.learner.update_Q_value(board_state, agent_move, reward, next_board)
+                        break
+                    # Now the opponent makes a move.
+                    opponent_move = random.choice(self.game.get_valid_moves())
+                    next_board_after_opp, opp_reward, game_over = self.game.step(opponent_move)
+                    if game_over:
+                        # If the opponent wins, penalize the agent’s previous move.
+                        self.learner.update_Q_value(board_state, agent_move, -1.0, next_board_after_opp)
+                        break
+                    # Update the Q-value for the agent’s move using the board state after the opponent’s move.
+                    self.learner.update_Q_value(board_state, agent_move, reward, next_board_after_opp)
 
-            while True:
-                board = self.game.board.copy()
-
-                if learning_agent_turn:
-                    move = self.learner.choose_move(board, train_mode=True)
-                    # Save the board and move for the learner's turn.
-                    previous_agent_board = board.copy()
-                    previous_agent_move = move
                 else:
-                    # Opponent agent does not use q-table, but random moves
-                    move = random.choice(self.game.get_valid_moves())
-
-                next_board, reward, game_over = self.game.step(move)
-
-                if learning_agent_turn:
-                    self.learner.update_Q_value(board, move, reward, next_board)
-                else:
-                    # If the opponent's move ends the game, it means the opponent wins,
-                    # so update the learner's previous move with a reward of -1.
-                    if game_over and previous_agent_board is not None and previous_agent_move is not None:
-                        self.learner.update_Q_value(previous_agent_board, previous_agent_move, -1.0, next_board)
-
-                if game_over:
-                    break
-
-                learning_agent_turn = not learning_agent_turn
+                    # Opponent goes first in the round.
+                    opponent_move = random.choice(self.game.get_valid_moves())
+                    _, _, game_over = self.game.step(opponent_move)
+                    if game_over:
+                        break
+                    # Now it is the agent’s turn.
+                    board_state = self.game.board.copy()
+                    agent_move = self.learner.choose_move(board_state, train_mode=True)
+                    next_board, reward, game_over = self.game.step(agent_move)
+                    if game_over:
+                        self.learner.update_Q_value(board_state, agent_move, reward, next_board)
+                        break
+                    # Opponent makes a move after the agent.
+                    opponent_move = random.choice(self.game.get_valid_moves())
+                    next_board_after_opp, opp_reward, game_over = self.game.step(opponent_move)
+                    if game_over:
+                        self.learner.update_Q_value(board_state, agent_move, -1.0, next_board_after_opp)
+                        break
+                    self.learner.update_Q_value(board_state, agent_move, reward, next_board_after_opp)
 
             self.learner.decay_epsilon()
 
@@ -691,7 +703,7 @@ class NimTrainerPlayer:
         print("Your turn: Choose a move from the following valid moves:")
         for idx, move in enumerate(valid_moves):
             #print(f"  {idx}: {move}")
-            print(f"Type {idx} to move {move}")
+            print(f"To move {move}, type {idx}")
 
         choice = None
         while (choice is None):
@@ -752,7 +764,6 @@ class NimTrainerPlayer:
             human_turn = not human_turn
             #print(f"Board after move:\n{self.game.board}")
 
-
 def main() -> None:
     """
     Main function to run the Nim game training and play against a human.
@@ -764,21 +775,30 @@ def main() -> None:
     """
     # Define the initial heaps configuration (e.g., heaps with 1, 3, and 5 stones).
     initial_heaps: List[int] = [1, 3, 5]
-    #initial_heaps: List[int] = [0, 0, 3]
+    # Define the hyperparameters for the Q-learning agent.
+    hiperparameters = {"α": 0.5, "γ": 0.9, "ϵ": 1.0, "ϵ_decay": 0.995, "ϵ_min": 0.09}
+    # Environment step penalty (negative reward for each non-winning move).
+    step_penalty = 0.01
+    # Number of training episodes.
+    training_episodes = 10000
 
+    # Show the initial configuration and training parameters.
+    print(f"Nim initial board: {initial_heaps}")
+    print(f"Training IA agent with {training_episodes} episodes.")
+    print(f"Hiperparameters: {hiperparameters}\n")
 
     # Initialize the game environment with a configurable step penalty.
-    game: NimGame = NimGame(initial_heaps, step_penalty=0.01)
-
-    # Initialize the Q-learning agent with default hyperparameters.
-    learner: Learner = Learner()
+    game: NimGame = NimGame(initial_heaps, step_penalty)
+    # Initialize the Q-learning agent with hyperparameters.
+    learner: Learner = Learner(alpha = hiperparameters['α'],
+                               gamma = hiperparameters['γ'],
+                               epsilon = hiperparameters['ϵ'],
+                               epsilon_decay = hiperparameters['ϵ_decay'],
+                               epsilon_min = hiperparameters['ϵ_min'])
 
     # Create the NimTrainerPlayer instance, providing no  Q-table filename to start training from scratch.
     trainer_player: NimTrainerPlayer = NimTrainerPlayer(game, learner, q_table_filename="")
-
     # Train the agent. If a saved Q-table exists, it will be loaded and training will be skipped.
-    training_episodes = 10000
-    print(f"Training the agent with {training_episodes} episodes for Nim Board: {initial_heaps}")
     trainer_player.train(training_episodes)
 
     # Show Q-Table:
