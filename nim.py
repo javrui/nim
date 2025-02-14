@@ -155,33 +155,82 @@ class Board:
         """
         return Board(self.heaps.copy())
 
-    def generate_all_board_states(self):
+    def get_all_possible_states(self) -> List[tuple]:
         """
-        Generates all possible board states from board configuration.
+        Generate all possible board states from self.heaps.
 
-        Args:
-            initial_board (list): The initial configuration of the board (e.g., [1, 3, 5]).
-
-        Returns:
-            set: A set of all possible board states, represented as tuples.
+        Each state is a tuple of heap counts.
+        The returned list is sorted by:
+          1. Ascending total number of stones.
+          2. For equal totals, states with more empty heaps come first.
+          3. Natural (lexicographical) order of the state.
         """
-        def _generate_states(board):
+        def _generate_states(heaps: List[int]) -> set:
             states = set()
-            states.add(tuple(board))  # Add the current state
-            for i, heap in enumerate(board):  # Iterate over each pile with index and value
-                for stones in range(1, heap + 1):  # Remove 1 to all stones from the pile
-                    new_board = list(board)  # Create a copy of the board
-                    new_board[i] -= stones  # Remove stones from the pile
-                    if new_board[i] < 0:  # Skip invalid states
-                        continue
-                    new_board_tuple = tuple(new_board)  # Convert to tuple (hashable for set)
-                    if new_board_tuple not in states:  # Avoid duplicates
-                        states.update(_generate_states(new_board))  # Recursively generate states
+            state = tuple(heaps)
+            states.add(state)
+            for i, pile in enumerate(heaps):
+                # Try removing from 1 up to all stones in the i-th heap.
+                for remove in range(1, pile + 1):
+                    new_heaps = heaps.copy()
+                    new_heaps[i] -= remove
+                    new_state = tuple(new_heaps)
+                    if new_state not in states:
+                        states.update(_generate_states(new_heaps))
             return states
 
-        return _generate_states(self.heaps)
+        all_states = _generate_states(self.heaps)
+        sorted_states = sorted(
+            all_states,
+            key=lambda state: (
+                sum(state),                   # Ascending total stones.
+                -sum(1 for h in state if h == 0),  # More empty heaps first.
+                state                         # Then natural (lexicographical) order.
+            )
+        )
+        return sorted_states
 
+    def OLD_get_all_possible_states(self) -> List[tuple]:
+        """
+        Generate all possible states from the current board configuration.
 
+        Returns:
+            List[tuple]: A list of all possible states, sorted by:
+                        1. Total number of stones (ascending).
+                        2. Number of empty heaps (descending).
+        """
+        def _generate_states(heaps: List[int]) -> set:
+            """
+            Recursively generate all possible states from the given heaps.
+
+            Args:
+                heaps (List[int]): The current heap configuration.
+
+            Returns:
+                set: A set of all possible states, represented as tuples.
+            """
+            states = set()
+            states.add(tuple(heaps))  # Add the current state
+            for i, pile in enumerate(heaps):  # Iterate over each heap
+                for stones in range(1, pile + 1):  # Remove 1 to all stones from the heap
+                    new_heaps = heaps.copy()  # Create a copy of the heaps
+                    new_heaps[i] -= stones  # Remove stones from the heap
+                    if new_heaps[i] < 0:  # Skip invalid states
+                        continue
+                    new_heaps_tuple = tuple(new_heaps)  # Convert to tuple (hashable for set)
+                    if new_heaps_tuple not in states:  # Avoid duplicates
+                        states.update(_generate_states(new_heaps))  # Recursively generate states
+            return states
+
+        # Generate all possible states
+        all_states = _generate_states(self.heaps)
+
+        # Sort the states:
+        # 1. By total number of stones (ascending).
+        # 2. By number of empty heaps (descending).
+        sorted_states = sorted(all_states, key=lambda x: (sum(x), -sum(1 for pile in x if pile == 0)))
+
+        return sorted_states
 
 class Learner:
     """
@@ -368,53 +417,73 @@ class Learner:
         except OSError as e:
             raise IOError(f"Failed to load Q-table from {filename}: {e}") from e
 
-    def show_q_table(self, initial_board: Board) -> None:
+    def show_q_table(self, initial_board: list[int]) -> None:
         """
         Print the Q-table as a formatted table.
-        Rows: Board heaps (ordered as specified)
-        Columns: Movements (ordered as specified)
+        Rows: board states (each represented as a list of heaps) sorted according to all possible states.
+        Columns: moves as tuples (heap_index, stones) ordered by:
+            - Grouping by stones (ascending)
+            - Within each group, by heap index (ascending)
+
+        For each cell:
+          - If the board's heap (at the given index) has less stones than required by the move,
+            the cell shows "--" (impossible combination).
+          - If the move is possible and a Q-value is present:
+                * If the Q-value is 0, show "0".
+                * Otherwise, show the integer derived from the first two digits of the
+                  decimal portion (i.e. int(q_value * 100)).
+          - If no Q-value is present (key not in q_table) and the move is possible, the cell is left blank.
         """
-        # q_table complete possible states
-        all_board_states = Board(initial_board).generate_all_board_states()
+        IMPOSSIBLE_CELL = '░'
+        # Generate all possible board states from the initial configuration.
+        board_obj = Board(initial_board)
+        all_board_states = board_obj.get_all_possible_states()[1:]
 
-        # Extract all unique board states and moves
-        # Sort by sum and inverse natural order
-        board_states = sorted(set(state for state, _, _ in self.q_table.keys()),
-                            key=lambda b: (sum(b), tuple(-x for x in b)))
+        # Print some statistics about the Q-table.
+        print(f"\nNo. of Q-values in q-Table: {len(self.q_table)}")
+        print(f"No. of present board states in q-Table: {len({state for state, _, _ in self.q_table.keys()})}")
+        print(f"No. of possible board states: {len(all_board_states)}\n")
 
-        print(f"\nNo. of Values in q-Table: {len(self.q_table)}")
-        print(f"No. present rows in q-Table:  {len(board_states)}")
-        print(f"No. possible rows in q-table: {len(all_board_states)}\n")
+        # Determine all possible moves from the initial configuration.
+        num_heaps = len(initial_board)
+        moves_set = set()
+        for heap_idx in range(num_heaps):
+            # For each heap, possible moves are from removing 1 stone up to the maximum in that heap.
+            for stones in range(1, initial_board[heap_idx] + 1):
+                moves_set.add((heap_idx, stones))
+        # Sort moves first by the number of stones (ascending) then by heap index (ascending).
+        moves = sorted(moves_set, key=lambda m: (m[1], m[0]))
 
+        # Build and print the header row.
+        header = f"{'Board':<11}" + " ".join(f"{f'({m[0]+1},{m[1]})':>8}" for m in moves)
 
-        # Sort by stones first, then natural order
-        moves = sorted(set((heap_index, stones) for _, heap_index, stones in self.q_table.keys()),
-                    key=lambda m: (m[1], m))
-        # Print header, 1-based index for heaps for human readability
-        move_headers = [f"({h+1}, {s})" for h, s in moves]
-        print(f"{'Board':<15} " + " ".join(f"{m:>8}" for m in move_headers))
-        print("-" * (15 + 10 * len(move_headers)))
+        print(header)
+        print("-" * len(header))
 
-        # Print rows
-        for board in board_states:
+        # For each board state (row), print the board and then the Q-value for each move (column).
+        for board in all_board_states:
             board_str = str(list(board))
+            #row = f"{board_str:<13}"
+            row = f"{board_str:<9}"
 
-            if sum(1 for x in board if x > 0) == 1:
-                board_mark = "*"
-            elif sum(1 for x in board if x > 0) == 2:
-                board_mark = "-"
-            else:
-                board_mark = " "
-            board_str += board_mark
-            #board_str = str(list(board)) + " *" if sum(1 for x in board if x > 0) == 1 else str(list(board)) + "  "
-            row_values = [
-                #f"{float(self.q_table.get((board, h, s), 0) * 100):>8.2f}"
-                f"{float(self.q_table.get((board, h, s), 0) * 100):>8.0f}"
-                if self.q_table.get((board, h, s), 0) != 0
-                else " " * 8 for h, s in moves]
-
-            #row_values = [f"{int(self.q_table.get((board, h, s), 0) * 100):>8d}" if self.q_table.get((board, h, s), 0) != 0 else " " * 8 for h, s in moves]
-            print(f"{board_str:<13} " + " ".join(row_values))
+            for heap_idx, stones in moves:
+                # If the board's available stones in the given heap are less than required, mark as impossible.
+                if board[heap_idx] < stones:
+                    cell = IMPOSSIBLE_CELL
+                else:
+                    key = (board, heap_idx, stones)
+                    if key in self.q_table:
+                        q_val = self.q_table[key]
+                        # If Q-value is exactly 0, display "0".
+                        if q_val == 0:
+                            cell = "0"
+                        else:
+                            cell = f"{int(q_val * 100)}"
+                    else:
+                        cell = "___"
+                #row += f"{cell:>9}"
+                row += f"{cell:>9}".replace(' ', IMPOSSIBLE_CELL)
+            print(row + IMPOSSIBLE_CELL)
 
 class NimGame:
     """
@@ -569,99 +638,40 @@ class NimTrainerPlayer:
         if self.load_q_table():
             return
 
-        # Proceed with training if no valid Q-table was loaded.
         for episode in range(episodes):
             self.game.reset()
-            #previous_agent_board = None # Board state before the agent's move
-            #previous_agent_move = None # move chosen by previous agent
-            learning_agent_turn = True # Learning agent is playing (not random opponent)
+            learning_agent_turn = True  # Learning agent is playing (not random opponent)
 
-            # Training loop:
+            # Initialize variables to store the learner’s last board and move.
+            previous_agent_board = None
+            previous_agent_move = None
+
             while True:
                 board = self.game.board.copy()
+
                 if learning_agent_turn:
                     move = self.learner.choose_move(board, train_mode=True)
+                    # Save the board and move for the learner's turn.
+                    previous_agent_board = board.copy()
+                    previous_agent_move = move
                 else:
                     # Opponent agent does not use q-table, but random moves
                     move = random.choice(self.game.get_valid_moves())
 
                 next_board, reward, game_over = self.game.step(move)
-                #if not learning_agent_turn and reward == 1:
-                    # If the opponent wins, the agent loses.
-                    #self.learner.update_Q_value(previous_agent_board, move, -1, board)
 
-                # Update the Q-value for the agent's move
                 if learning_agent_turn:
                     self.learner.update_Q_value(board, move, reward, next_board)
-                    # to be used in case next (opponent) move wins game
-                    #previous_agent_board = board.copy()
-                    #previous_agent_move = move
+                else:
+                    # If the opponent's move ends the game, it means the opponent wins,
+                    # so update the learner's previous move with a reward of -1.
+                    if game_over and previous_agent_board is not None and previous_agent_move is not None:
+                        self.learner.update_Q_value(previous_agent_board, previous_agent_move, -1.0, next_board)  # @@@ added
 
                 if game_over:
                     break
 
                 learning_agent_turn = not learning_agent_turn
-
-            # Decay epsilon after each episode.
-            self.learner.decay_epsilon()
-
-        self.save_q_table()
-
-    def OLD_train(self, episodes: int = 10000) -> None:
-        """
-        Train the Q-learning agent over a number of episodes. If a saved Q-table is found in the file
-        specified by q_table_filename, it is loaded and training is skipped; otherwise, training is performed
-        and the resulting Q-table is saved to that file.
-
-        Modified to simulate an opponent move after the agent's move. The Q-value update now uses the board
-        state resulting from the opponent's move (if the game was not already over) and adjusts the reward accordingly.
-
-        Args:
-            episodes (int): The number of training episodes.
-        """
-        # Check if a saved Q-table exists. If so, load it and skip training.
-        if os.path.exists(self.q_table_filename):
-            self.load_q_table()
-            return
-
-        # Proceed with training if no valid Q-table was loaded.
-        for episode in range(episodes):
-            self.game.reset()
-            current_board = self.game.board.copy()
-            while not self.game.is_game_over():
-                # -Agent's Move
-                agent_move = self.learner.choose_move(current_board, train_mode=True)
-                next_board, reward, game_over = self.game.step(agent_move)
-
-                if not game_over:
-                    # Simulates random opponent's valid move
-                    opponent_valid_moves = self.game.get_valid_moves()
-                    opponent_move = random.choice(opponent_valid_moves)
-                    next_board_after_opponent, opponent_reward, game_over = self.game.step(opponent_move)
-
-                    if game_over:
-                        # If the opponent's move ends the game, it means the opponent wins
-                        reward = -1.0
-                    else:
-                        # If the game still continues, penalize the agent slightly.
-                        reward = -self.game.step_penalty
-                #else:
-                    # If the opponent's move ends the game, it means the agent loses.
-                    #reward = -1.0
-                    #else:
-                        # If the game still continues, penalize the agent slightly.
-                        #reward = -self.game.step_penalty
-                    # Use the board state after the opponent's move for the Q-value update.
-                    # next_board = next_board_after_opponent
-                # --------------------------------------------------------
-
-                # Update the Q-value for the agent's move using the (possibly updated) next_board and reward.
-                self.learner.update_Q_value(current_board, agent_move, reward, next_board)
-                if not game_over:
-                    # Move to the next state after opponent's move
-                    current_board = next_board_after_opponent
-                else:
-                    break
 
             self.learner.decay_epsilon()
 
@@ -697,6 +707,7 @@ class NimTrainerPlayer:
                 continue
         print()
         return chosen_move
+
 
     def play_against_human(self) -> None:
         """
@@ -740,6 +751,7 @@ class NimTrainerPlayer:
             human_turn = not human_turn
             #print(f"Board after move:\n{self.game.board}")
 
+
 def main() -> None:
     """
     Main function to run the Nim game training and play against a human.
@@ -750,8 +762,8 @@ def main() -> None:
     human to play against the trained agent.
     """
     # Define the initial heaps configuration (e.g., heaps with 1, 3, and 5 stones).
-    initial_heaps: List[int] = [1, 3, 5]
-    #initial_heaps: List[int] = [2, 0, 0]
+    #initial_heaps: List[int] = [1, 3, 5]
+    initial_heaps: List[int] = [0, 0, 3]
 
 
     # Initialize the game environment with a configurable step penalty.
@@ -765,7 +777,7 @@ def main() -> None:
 
     # Train the agent. If a saved Q-table exists, it will be loaded and training will be skipped.
     training_episodes = 10000
-    print(f"Training the agent with {training_episodes} episodes.")
+    print(f"Training the agent with {training_episodes} episodes. for Nim Board: {initial_heaps}")
     trainer_player.train(training_episodes)
 
     # Show Q-Table:
