@@ -640,7 +640,8 @@ class NimTrainerPlayer:
 
         for episode in range(episodes):
             self.game.reset()
-            learning_agent_turn = True  # Learning agent is playing (not random opponent)
+            # Randomly decide which player goes first in this episode.
+            learning_agent_turn = random.choice([True, False])
 
             # Initialize variables to store the learner’s last board and move.
             previous_agent_board = None
@@ -666,7 +667,7 @@ class NimTrainerPlayer:
                     # If the opponent's move ends the game, it means the opponent wins,
                     # so update the learner's previous move with a reward of -1.
                     if game_over and previous_agent_board is not None and previous_agent_move is not None:
-                        self.learner.update_Q_value(previous_agent_board, previous_agent_move, -1.0, next_board)  # @@@ added
+                        self.learner.update_Q_value(previous_agent_board, previous_agent_move, -1.0, next_board)
 
                 if game_over:
                     break
@@ -677,7 +678,6 @@ class NimTrainerPlayer:
 
         self.save_q_table()
 
-
     def get_human_move(self)-> Move:
         """
         The human is prompted to select a move from a list of valid moves.
@@ -687,10 +687,11 @@ class NimTrainerPlayer:
         """
         valid_moves: List[Move] = self.game.get_valid_moves()
         print(50*'-')
-        print("Your valid moves: ([heap]->stones : move nr.)")
+        #print("Your valid moves: ([heap]->stones : move nr.)")
+        print("Your turn: Choose a move from the following valid moves:")
         for idx, move in enumerate(valid_moves):
             #print(f"  {idx}: {move}")
-            print(f"  {move} : {idx}")
+            print(f"Type {idx} to move {move}")
 
         choice = None
         while (choice is None):
@@ -707,7 +708,6 @@ class NimTrainerPlayer:
                 continue
         print()
         return chosen_move
-
 
     def play_against_human(self) -> None:
         """
@@ -740,6 +740,7 @@ class NimTrainerPlayer:
             else:
                 # Nim IA turn
                 chosen_move = self.learner.choose_move(self.game.board, train_mode=False)
+                input("Press key to see AI move...")
                 print(50*'-')
                 print(f"Nim AI moves: {chosen_move}\n")
                 self.game.board.show_stones_move(chosen_move)
@@ -762,8 +763,8 @@ def main() -> None:
     human to play against the trained agent.
     """
     # Define the initial heaps configuration (e.g., heaps with 1, 3, and 5 stones).
-    #initial_heaps: List[int] = [1, 3, 5]
-    initial_heaps: List[int] = [0, 0, 3]
+    initial_heaps: List[int] = [1, 3, 5]
+    #initial_heaps: List[int] = [0, 0, 3]
 
 
     # Initialize the game environment with a configurable step penalty.
@@ -777,12 +778,11 @@ def main() -> None:
 
     # Train the agent. If a saved Q-table exists, it will be loaded and training will be skipped.
     training_episodes = 10000
-    print(f"Training the agent with {training_episodes} episodes. for Nim Board: {initial_heaps}")
+    print(f"Training the agent with {training_episodes} episodes for Nim Board: {initial_heaps}")
     trainer_player.train(training_episodes)
 
     # Show Q-Table:
     learner.show_q_table(initial_heaps)
-    exit()
 
     # Let the human play against the trained agent.
     print("\nNow, let's play against the trained agent!")
