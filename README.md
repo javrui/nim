@@ -40,6 +40,76 @@ Core classes and their reinforcement learning (RL) roles:
 
 ## UML Class Diagram
 
+The class design has been refined through an iterative process, but the initial UML class diagram given to AI code assistants was:
+
+
+```text
++---------------------+
+|       Move          |
++---------------------+
+| + heap_index        |
+| + stones            |
++---------------------+
+| + __repr__()        |
++---------------------+
+
++---------------------+
+|       Board         |
++---------------------+
+| + heaps             |
++---------------------+
+| + apply_move()      |
+| + get_valid_moves() |
+| + is_game_over()    |
+| + reset()           |
+| + __repr__()        |
++---------------------+
+
++---------------------+
+|     Learner         |
++---------------------+
+| + alpha             |
+| + gamma             |
+| + epsilon           |
+| + epsilon_decay     |
+| + epsilon_min       |
+| + q_table           |
++---------------------+
+| + get_Q_value()     |
+| + set_Q_value()     |
+| + choose_move()     |
+| + update_Q_value()  |
+| + decay_epsilon()   |
+| + save_q_table()    |
+| + load_q_table()    |
++---------------------+
+
++---------------------+
+|     NimGame         |
++---------------------+
+| + initial_heaps     |
+| + board             |
++---------------------+
+| + get_valid_moves() |
+| + apply_move()      |
+| + is_game_over()    |
+| + reset()           |
+| + step()            |
++---------------------+
+
++--------------------------+
+|     NimTrainerPlayer     |
++--------------------------+
+| + game                   |
+| + learner                |
++--------------------------+
+| + train()                |
+| + play_against_human()   |
++--------------------------+
+```
+
+After the coding cycle, the UML diagram looks like this ...
+
 ```text
 +-----------------------------------------+
 | Move                                    |
