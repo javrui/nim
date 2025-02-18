@@ -40,7 +40,8 @@ Core classes and their reinforcement learning (RL) roles:
 
 ## UML Class Diagram
 
-_(To be added.)_
+(To be added.)
+![WARNING](images/under_construction.jpg)
 
 ## Design Challenges
 
@@ -68,9 +69,16 @@ For a board setup like **[1, 3, 5]**, this results in **48 possible states** and
 ## Generated Q-Table
 
 Each row represents a possible game state, while each column corresponds to a possible move.
+Rows are ordered by an increasing number of stones.
 
 ![QTABLE](images/q_table.png)
 
+## Game playing
+
+python3 nim.py / python.py nim.py
+
+(Video and instructions to be added)
+![WARNING](images/under_construction.jpg)
 
 ## Python code
 
@@ -364,7 +372,7 @@ class Learner:
         if train_mode and random.random() < self.epsilon:
             return random.choice(valid_moves)
 
-        best_value: float = float("-inf")
+        best_value: float = float("-inf")```
         best_moves: List[Move] = []
         for move in valid_moves:
             q_value: float = self.get_q_value(board, move)
@@ -798,4 +806,5 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+```
 
