@@ -26,7 +26,7 @@ class Move:
     """Represents a move in the Nim game.
 
     Attributes:
-        heap_index (int): Index of the heap (0-indexed) from which stones are 
+        heap_index (int): Index of the heap (0-indexed) from which stones are
             removed.
         stones (int): Number of stones to remove from the heap.
     """
@@ -35,7 +35,7 @@ class Move:
         """Initialize a Move instance.
 
         Args:
-            heap_index (int): The index of the heap from which stones are to be 
+            heap_index (int): The index of the heap from which stones are to be
                 removed.
             stones (int): The number of stones to remove.
         """
@@ -46,7 +46,7 @@ class Move:
         """Return a string representation of the move.
 
         Returns:
-            str: A human-readable string with heap_index adjusted to 1-based 
+            str: A human-readable string with heap_index adjusted to 1-based
                 indexing.
         """
         return f"[{self.heap_index + 1}]->{self.stones}"
@@ -56,7 +56,7 @@ class Board:
     """Represents the board (state) for a game of Nim.
 
     Attributes:
-        heaps (List[int]): A list of integers representing the number of stones 
+        heaps (List[int]): A list of integers representing the number of stones
             in each heap.
     """
 
@@ -75,8 +75,8 @@ class Board:
             move (Move): The move to apply.
 
         Raises:
-            ValueError: If the move's heap index is out of range, if the number 
-                of stones to remove is not positive, or if there are insufficient 
+            ValueError: If the move's heap index is out of range, if the number
+                of stones to remove is not positive, or if there are insufficient
                 stones in the heap.
         """
         if move.heap_index < 0 or move.heap_index >= len(self.heaps):
@@ -126,7 +126,7 @@ class Board:
     def show_stones_move(self, chosen_move: Move) -> str:
         """Generate a string representation of the board after a move.
 
-        The stones removed by the move are shown with '·' and the remaining 
+        The stones removed by the move are shown with '·' and the remaining
         stones with '*'.
 
         Args:
@@ -203,7 +203,7 @@ class Learner:
         epsilon (float): Exploration rate.
         epsilon_decay (float): Decay rate for epsilon.
         epsilon_min (float): Minimum exploration rate.
-        q_table (Dict[Tuple[Tuple[int, ...], int, int], float]): Mapping from 
+        q_table (Dict[Tuple[Tuple[int, ...], int, int], float]): Mapping from
             (state, move) to Q-value.
     """
 
@@ -272,7 +272,7 @@ class Learner:
 
         Args:
             board (Board): The current board state.
-            train_mode (bool): If True, use exploration; otherwise, choose the best 
+            train_mode (bool): If True, use exploration; otherwise, choose the best
                 known move.
 
         Returns:
@@ -362,7 +362,7 @@ class Learner:
         """Print a formatted table of the Q-values.
 
         Args:
-            initial_board (List[int]): The initial configuration of heaps used to 
+            initial_board (List[int]): The initial configuration of heaps used to
                 generate possible states.
         """
         brick: str = "░"
@@ -431,7 +431,7 @@ class NimGame:
         """Initialize the Nim game environment.
 
         Args:
-            initial_heaps (List[int]): A list of integers representing the initial 
+            initial_heaps (List[int]): A list of integers representing the initial
                 stones in each heap.
             step_penalty (float, optional): The penalty for non-winning moves.
                 Defaults to 0.01.
@@ -460,7 +460,7 @@ class NimGame:
         """Check whether the game is over.
 
         Returns:
-            bool: True if the game has ended (all heaps are empty), otherwise 
+            bool: True if the game has ended (all heaps are empty), otherwise
                 False.
         """
         return self.board.is_game_over()
@@ -478,7 +478,7 @@ class NimGame:
         Returns:
             Tuple[Board, float, bool]: A tuple containing:
                 - Board: The new board state (deep copy).
-                - float: The reward obtained (WIN_REWARD if game is won; 
+                - float: The reward obtained (WIN_REWARD if game is won;
                   otherwise negative step_penalty).
                 - bool: True if the game is over, False otherwise.
         """
@@ -493,7 +493,7 @@ class NimGame:
 # ----------------------------
 
 class NimTrainerPlayer:
-    """Combines the Nim game with Q-learning training and provides a human-play 
+    """Combines the Nim game with Q-learning training and provides a human-play
     interface.
 
     Attributes:
@@ -546,7 +546,7 @@ class NimTrainerPlayer:
         self.learner.save_q_table(self.q_table_filename)
         print(f"Q-table saved to '{self.q_table_filename}'.")
 
-    def _train_episode(self) -> None:
+    def xxx_train_episode(self) -> None:
         """Execute one training episode using an agent vs. random opponent strategy."""
         self.game.reset()
         agent_goes_first: bool = random.choice([True, False])

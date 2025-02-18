@@ -40,8 +40,89 @@ Core classes and their reinforcement learning (RL) roles:
 
 ## UML Class Diagram
 
-(To be added.)
-![WARNING](images/under_construction.jpg)
+```text
++-----------------------------------------+
+| Move                                    |
++-----------------------------------------+
+| + heap_index                            |
+| + stones                                |
++-----------------------------------------+
+| + __init__(heap_index, stones)          |
+| + __repr__()                            |
++-----------------------------------------+
+
++-----------------------------------------+
+| Board                                   |
++-----------------------------------------+
+| + heaps                                 |
++-----------------------------------------+
+| + __init__(heaps)                       |
+| + apply_move(move)                      |
+| + get_valid_moves()                     |
+| + is_game_over()                        |
+| + __repr__()                            |
+| + show_stones_move(chosen_move)         |
+| + copy()                                |
+| + get_all_possible_states()             |
++-----------------------------------------+
+
++-----------------------------------------+
+| Learner                                 |
++-----------------------------------------+
+| + alpha                                 |
+| + gamma                                 |
+| + epsilon                               |
+| + epsilon_decay                         |
+| + epsilon_min                           |
+| + q_table                               |
++-----------------------------------------+
+| + __init__(alpha, gamma, epsilon,       |
+|            epsilon_decay, epsilon_min)  |
+| + _get_key(board, move)                 |
+| + get_q_value(board, move)              |
+| + set_q_value(board, move, value)       |
+| + choose_move(board, train_mode)        |
+| + update_q_value(board, move, reward,   |
+|                    next_board)          |
+| + decay_epsilon()                       |
+| + save_q_table(filename)                |
+| + load_q_table(filename)                |
+| + show_q_table(initial_board)           |
++-----------------------------------------+
+
++-----------------------------------------+
+| NimGame                                 |
++-----------------------------------------+
+| + initial_heaps                         |
+| + board                                 |
+| + step_penalty                          |
++-----------------------------------------+
+| + WIN_REWARD                            |
+| + __init__(initial_heaps, step_penalty) |
+| + get_valid_moves()                     |
+| + apply_move(move)                      |
+| + is_game_over()                        |
+| + reset()                               |
+| + step(move)                            |
++-----------------------------------------+
+
++-----------------------------------------+
+| NimTrainerPlayer                        |
++-----------------------------------------+
+| + game                                  |
+| + learner                               |
+| + q_table_filename                      |
++-----------------------------------------+
+| + __init__(game, learner,               |
+|            q_table_filename)            |
+| + load_q_table()                        |
+| + save_q_table()                        |
+| - _train_episode()                      |
+| + train(episodes)                       |
+| + get_human_move()                      |
+| + play_against_human()                  |
++-----------------------------------------+
+```
 
 ## Design Challenges
 
